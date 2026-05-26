@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Simulador — Tratamento de Água | UENP 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg:#0b0e14; --surf:#13171f; --surf2:#1a1f2b;
+  --bord:rgba(255,255,255,.07); --bord2:rgba(255,255,255,.14);
+  --blue:#3b82f6; --green:#22d3a5; --amber:#f59e0b; --red:#f43f5e;
+  --text:#e8eaf0; --muted:#6b7280;
+  --mono:'IBM Plex Mono',monospace; --sans:'Inter',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(59,130,246,.025) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(59,130,246,.025) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0}
+
+.app{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 16px 60px}
+
+/* ── HEADER ── */
+header{padding:28px 0 24px;border-bottom:1px solid var(--bord);margin-bottom:24px;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.htag{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--blue);
+  text-transform:uppercase;margin-bottom:6px}
+h1{font-size:clamp(18px,4vw,30px);font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.15}
+h1 span{color:var(--green)}
+.hmeta{font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+.hbadge{background:var(--surf2);border:1px solid var(--bord2);border-radius:10px;
+  padding:8px 14px;text-align:right;flex-shrink:0}
+.hbadge .bi{font-size:10px;color:var(--muted)}
+.hbadge .bn{font-size:11px;font-weight:500;color:var(--text);margin-top:2px}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:2px;background:var(--surf);border:1px solid var(--bord);
+  border-radius:12px;padding:4px;margin-bottom:22px;overflow-x:auto;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1;min-width:90px;padding:8px 10px;border:none;background:none;
+  border-radius:9px;cursor:pointer;font-family:var(--sans);font-size:11px;
+  font-weight:500;color:var(--muted);display:flex;align-items:center;
+  justify-content:center;gap:5px;transition:all .2s;white-space:nowrap}
+.tab svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
+.tab:hover{color:var(--text);background:var(--surf2)}
+.tab.active{background:var(--blue);color:#fff}
+
+/* ── PANELS ── */
+.panel{display:none;animation:fi .22s ease}
+.panel.active{display:block}
+@keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* ── METRIC CARDS ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:10px;margin-bottom:20px}
+.card{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px}
+.cl{font-family:var(--mono);font-size:9px;letter-spacing:.07em;color:var(--muted);
+  text-transform:uppercase;margin-bottom:6px}
+.cv{font-size:20px;font-weight:700;color:#fff;font-family:var(--mono)}
+.cu{font-size:10px;color:var(--muted);margin-left:2px}
+.card.blue{border-color:rgba(59,130,246,.3)}.card.blue .cv{color:var(--blue)}
+.card.green{border-color:rgba(34,211,165,.3)}.card.green .cv{color:var(--green)}
+
+/* ── TWO-COL LAYOUT (params) ── */
+.p2col{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start}
+@media(max-width:700px){.p2col{grid-template-columns:1fr}}
+
+/* ── CONTROLS ── */
+.csec{background:var(--surf);border:1px solid var(--bord);border-radius:12px;
+  padding:16px;margin-bottom:14px}
+.csec-title{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--blue);
+  text-transform:uppercase;margin-bottom:14px}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:500px){.cgrid{grid-template-columns:1fr}}
+.cblock label{font-size:11px;color:var(--muted);display:block;margin-bottom:7px}
+.cblock label b{color:var(--text);font-style:italic}
+.srow{display:flex;align-items:center;gap:8px}
+input[type=range]{flex:1;height:4px;appearance:none;background:var(--surf2);
+  border-radius:2px;outline:none;cursor:pointer;min-width:0}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;
+  background:var(--blue);border-radius:50%;cursor:pointer;border:2px solid var(--bg);
+  transition:transform .15s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.sval{font-family:var(--mono);font-size:11px;color:var(--blue);min-width:60px;text-align:right}
+
+/* ── STABILITY BOXES ── */
+.stabrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+@media(max-width:420px){.stabrow{grid-template-columns:1fr}}
+.sbox{border-radius:10px;padding:11px 13px;font-family:var(--mono);font-size:10px;line-height:1.7}
+.sbox-up{background:rgba(34,211,165,.07);border:1px solid rgba(34,211,165,.2);color:var(--green)}
+.sbox-dn{background:rgba(244,63,94,.07);border:1px solid rgba(244,63,94,.2);color:#f87171}
+
+/* ── EDO LIVE ── */
+.edolive{background:var(--bg);border:1px solid var(--bord2);border-left:3px solid var(--blue);
+  border-radius:0 8px 8px 0;padding:12px 15px;font-family:var(--mono);font-size:12px;
+  color:var(--text);margin-top:14px;overflow-x:auto;white-space:nowrap}
+.edolive .hl{color:var(--blue)}.edolive .hl2{color:var(--green)}
+
+/* ── TANK PANEL ── */
+.tank-panel{background:var(--surf);border:1px solid var(--bord);border-radius:12px;
+  padding:16px;position:sticky;top:16px}
+@media(max-width:700px){.tank-panel{position:static}}
+.tptitle{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--green);
+  text-transform:uppercase;margin-bottom:12px}
+#tank-canvas{display:block;width:100%;border-radius:8px;cursor:default}
+.ttime{display:flex;align-items:center;gap:8px;margin-top:12px}
+.ttime label{font-family:var(--mono);font-size:10px;color:var(--muted);flex-shrink:0}
+#tslider{flex:1}
+.ttval{font-family:var(--mono);font-size:11px;color:var(--blue);min-width:38px;text-align:right}
+.playbtn{background:var(--blue);border:none;border-radius:7px;color:#fff;
+  font-size:11px;font-family:var(--mono);padding:6px 11px;cursor:pointer;
+  white-space:nowrap;transition:opacity .15s;flex-shrink:0}
+.playbtn:hover{opacity:.85}
+.tstats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.tstat{background:var(--bg);border:1px solid var(--bord);border-radius:8px;padding:8px 10px}
+.tslbl{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--muted);
+  text-transform:uppercase;margin-bottom:3px}
+.tsval{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text)}
+.tsval.b{color:var(--blue)}.tsval.g{color:var(--green)}.tsval.a{color:var(--amber)}
+
+/* ── CHART BOX ── */
+.cbox{background:var(--surf);border:1px solid var(--bord);border-radius:12px;
+  padding:18px;margin-bottom:14px}
+.cboxt{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted);
+  text-transform:uppercase;margin-bottom:14px}
+.leg{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px}
+.li{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.ll{width:22px;height:2px;border-radius:1px}
+.lld{background:none!important;border-top:2px dashed}
+
+/* ── TABLE ── */
+.twrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+th{text-align:left;padding:9px 10px;color:var(--muted);font-size:9px;
+  letter-spacing:.07em;text-transform:uppercase;border-bottom:1px solid var(--bord);font-weight:500}
+td{padding:8px 10px;border-bottom:1px solid var(--bord);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surf2)}
+.ee{color:#fca5a5}.er{color:var(--green)}
+
+/* ── CMP TABLE ── */
+.cmpt{width:100%;border-collapse:collapse;font-size:11px}
+.cmpt th{background:var(--surf2);padding:9px 12px;text-align:left;
+  font-size:9px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.cmpt td{padding:9px 12px;border-bottom:1px solid var(--bord)}
+.cmpt tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:500;font-family:var(--mono)}
+.bg{background:rgba(34,211,165,.13);color:var(--green)}
+.br{background:rgba(244,63,94,.13);color:#fca5a5}
+
+/* ── THEORY ── */
+.tgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+@media(max-width:540px){.tgrid{grid-template-columns:1fr}}
+.tcard{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px}
+.tcard h3{font-size:12px;font-weight:600;color:var(--blue);margin-bottom:10px;letter-spacing:.01em}
+.tcard p{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.9}
+.tcard p b{color:var(--text)}
+.irow{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bord);font-size:11px}
+.irow:last-child{border-bottom:none}
+.ik{color:var(--muted)}.iv{color:var(--text);font-weight:500}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:3px}
+
+footer{text-align:center;font-family:var(--mono);font-size:9px;color:var(--muted);
+  padding-top:28px;border-top:1px solid var(--bord);margin-top:36px;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<header>
+  <div>
+    <div class="htag">// Cálculo II &amp; Aplicações Computacionais</div>
+    <h1>Simulador de <span>Tratamento de Água</span></h1>
+    <div class="hmeta">EDO linear · Euler · RK4 · Campo de Direções</div>
+  </div>
+  <div class="hbadge">
+    <div class="bi">UENP — Bandeirantes, 2026</div>
+    <div class="bn">Ana Alice · Ana Clara · Yasmim</div>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" onclick="tab('params')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+    Parâmetros
+  </button>
+  <button class="tab" onclick="tab('grafico')">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Gráfico Q(t)
+  </button>
+  <button class="tab" onclick="tab('campo')">
+    <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    Campo
+  </button>
+  <button class="tab" onclick="tab('erros')">
+    <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><polyline points="7 16 11 12 15 14 20 9"/></svg>
+    Erros
+  </button>
+  <button class="tab" onclick="tab('teoria')">
+    <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+    Teoria
+  </button>
+</div>
+
+<!-- ═══ PARÂMETROS ═══ -->
+<div class="panel active" id="panel-params">
+
+  <div class="cards">
+    <div class="card blue">
+      <div class="cl">Taxa k</div>
+      <div class="cv" id="c-k">0.500<span class="cu">h⁻¹</span></div>
+    </div>
+    <div class="card blue">
+      <div class="cl">Equilíbrio Q*</div>
+      <div class="cv" id="c-qs">20.0<span class="cu">kg</span></div>
+    </div>
+    <div class="card green">
+      <div class="cl">Meia-vida t½</div>
+      <div class="cv" id="c-t12">1.39<span class="cu">h</span></div>
+    </div>
+    <div class="card">
+      <div class="cl">Entrada α</div>
+      <div class="cv" id="c-al">10.0<span class="cu">kg/h</span></div>
+    </div>
+    <div class="card">
+      <div class="cl">Conc. eq.</div>
+      <div class="cv" id="c-ceq">0.040<span class="cu">kg/m³</span></div>
+    </div>
+  </div>
+
+  <div class="p2col">
+    <!-- esquerda: sliders -->
+    <div>
+      <div class="csec">
+        <div class="csec-title">// sistema físico</div>
+        <div class="cgrid">
+          <div class="cblock">
+            <label>Vazão <b>r</b></label>
+            <div class="srow">
+              <input type="range" id="sl-r" min="100" max="600" step="10" value="250" oninput="update()">
+              <span class="sval"><span id="v-r">250</span> m³/h</span>
+            </div>
+          </div>
+          <div class="cblock">
+            <label>Volume <b>V</b></label>
+            <div class="srow">
+              <input type="range" id="sl-V" min="100" max="1500" step="50" value="500" oninput="update()">
+              <span class="sval"><span id="v-V">500</span> m³</span>
+            </div>
+          </div>
+          <div class="cblock">
+            <label>c<sub>in</sub></label>
+            <div class="srow">
+              <input type="range" id="sl-cin" min="0.01" max="0.12" step="0.005" value="0.04" oninput="update()">
+              <span class="sval"><span id="v-cin">0.040</span> kg/m³</span>
+            </div>
+          </div>
+          <div class="cblock">
+            <label>Sal inicial <b>Q₀</b></label>
+            <div class="srow">
+              <input type="range" id="sl-Q0" min="0" max="50" step="1" value="0" oninput="update()">
+              <span class="sval"><span id="v-Q0">0</span> kg</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="csec">
+        <div class="csec-title">// parâmetros numéricos</div>
+        <div class="cgrid">
+          <div class="cblock">
+            <label>Passo <b>h</b></label>
+            <div class="srow">
+              <input type="range" id="sl-h" min="0.05" max="1.5" step="0.05" value="0.1" oninput="update()">
+              <span class="sval"><span id="v-h">0.10</span> h</span>
+            </div>
+          </div>
+          <div class="cblock">
+            <label>Tempo total <b>T</b></label>
+            <div class="srow">
+              <input type="range" id="sl-T" min="2" max="48" step="1" value="24" oninput="update()">
+              <span class="sval"><span id="v-T">24</span> h</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stabrow">
+        <div class="sbox sbox-up">Q &lt; Q* → dQ/dt &gt; 0<br><b>cresce</b> ao equilíbrio ▲</div>
+        <div class="sbox sbox-dn">Q &gt; Q* → dQ/dt &lt; 0<br><b>decresce</b> ao equilíbrio ▼</div>
+      </div>
+
+      <div class="edolive" id="edo-live">
+        dQ/dt = <span class="hl">10.00</span> − <span class="hl2">0.500</span>·Q(t),&nbsp; Q(0) = 0
+      </div>
+    </div>
+
+    <!-- direita: tanque animado -->
+    <div class="tank-panel">
+      <div class="tptitle">// tanque em tempo real</div>
+      <canvas id="tank-canvas" height="300"></canvas>
+
+      <div class="ttime">
+        <label>t =</label>
+        <input type="range" id="tslider" min="0" max="200" step="1" value="0" oninput="onSlider()">
+        <span class="ttval" id="tlbl">0.00 h</span>
+        <button class="playbtn" id="playbtn" onclick="togglePlay()">▶ Play</button>
+      </div>
+
+      <div class="tstats">
+        <div class="tstat"><div class="tslbl">Q(t)</div><div class="tsval b" id="ts-qt">0.00 kg</div></div>
+        <div class="tstat"><div class="tslbl">% Equilíbrio</div><div class="tsval g" id="ts-pct">0 %</div></div>
+        <div class="tstat"><div class="tslbl">Conc. atual</div><div class="tsval" id="ts-cc">0.000 kg/m³</div></div>
+        <div class="tstat"><div class="tslbl">dQ/dt</div><div class="tsval a" id="ts-dq">+10.00 kg/h</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GRÁFICO ═══ -->
+<div class="panel" id="panel-grafico">
+  <div class="cbox">
+    <div class="cboxt">// evolução temporal de Q(t)</div>
+    <div style="position:relative;width:100%;height:320px">
+      <canvas id="chart-main"></canvas>
+    </div>
+    <div class="leg">
+      <div class="li"><div class="ll" style="background:#3b82f6"></div>Analítica</div>
+      <div class="li"><div class="ll lld" style="border-color:#f43f5e"></div>Euler</div>
+      <div class="li"><div class="ll lld" style="border-color:#22d3a5"></div>RK4</div>
+      <div class="li"><div class="ll" style="background:#f59e0b;opacity:.7"></div>Q*</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CAMPO ═══ -->
+<div class="panel" id="panel-campo">
+  <div class="cbox">
+    <div class="cboxt">// campo de direções — dQ/dt = α − k·Q(t)</div>
+    <canvas id="canvas-campo" style="width:100%;border-radius:8px;display:block"></canvas>
+    <div class="leg" style="margin-top:10px">
+      <div class="li"><div class="ll" style="background:#3b82f6"></div>Trajetória (Q₀ atual)</div>
+      <div class="li"><div class="ll" style="background:#22d3a5;opacity:.7"></div>Q₀ &lt; Q* (converge de baixo)</div>
+      <div class="li"><div class="ll" style="background:#f43f5e;opacity:.7"></div>Q₀ &gt; Q* (converge de cima)</div>
+      <div class="li"><div class="ll" style="background:#f59e0b;opacity:.7"></div>Equilíbrio Q*</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ERROS ═══ -->
+<div class="panel" id="panel-erros">
+  <div class="cbox">
+    <div class="cboxt">// erro absoluto acumulado</div>
+    <div style="position:relative;width:100%;height:240px">
+      <canvas id="chart-err"></canvas>
+    </div>
+    <div class="leg">
+      <div class="li"><div class="ll" style="background:#f43f5e"></div>Erro Euler — O(h)</div>
+      <div class="li"><div class="ll" style="background:#22d3a5"></div>Erro RK4 — O(h⁴)</div>
+    </div>
+  </div>
+  <div class="cbox">
+    <div class="cboxt">// tabela de erros por instante</div>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>t(h)</th><th>Analítica</th><th>Euler</th><th>Erro Euler</th><th>RK4</th><th>Erro RK4</th></tr></thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="cbox">
+    <div class="cboxt">// comparação entre métodos</div>
+    <table class="cmpt">
+      <thead><tr><th>Característica</th><th>Euler</th><th>RK4</th></tr></thead>
+      <tbody>
+        <tr><td>Precisão global</td><td><span class="badge br">O(h)</span></td><td><span class="badge bg">O(h⁴)</span></td></tr>
+        <tr><td>Avaliações de f/passo</td><td>1</td><td>4</td></tr>
+        <tr><td>Custo computacional</td><td>Baixo</td><td>Moderado</td></tr>
+        <tr><td>Saúde pública</td><td><span class="badge br">Não recomendado</span></td><td><span class="badge bg">Recomendado</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ TEORIA ═══ -->
+<div class="panel" id="panel-teoria">
+  <div class="edolive" style="margin-bottom:14px">
+    dQ/dt = <span class="hl">α</span> − <span class="hl2">k</span>·Q(t),&nbsp; Q(0) = Q₀
+  </div>
+  <div class="tgrid">
+    <div class="tcard">
+      <h3>Balanço de massa</h3>
+      <p><b>Entrada:</b> r·c<sub>in</sub> = α [kg/h]<br>
+         <b>Saída:</b> (r/V)·Q(t) = k·Q [kg/h]<br>
+         <b>EDO:</b> dQ/dt = α − k·Q</p>
+    </div>
+    <div class="tcard">
+      <h3>Solução analítica</h3>
+      <p>Q(t) = Q* + (Q₀ − Q*)·e<sup>−kt</sup><br><br>
+         <b id="sol-txt">Q(t) = 20·(1 − e⁻⁰·⁵ᵗ)</b></p>
+    </div>
+    <div class="tcard">
+      <h3>Método de Euler</h3>
+      <p>Q<sub>n+1</sub> = Q<sub>n</sub> + h·f(tₙ,Qₙ)<br>
+         f(t,Q) = α − k·Q<br>
+         Erro local: <b>O(h²)</b><br>
+         Erro global: <b>O(h)</b></p>
+    </div>
+    <div class="tcard">
+      <h3>Método RK4</h3>
+      <p>k₁=f(tₙ,Qₙ)<br>
+         k₂=f(tₙ+h/2, Qₙ+h·k₁/2)<br>
+         k₃=f(tₙ+h/2, Qₙ+h·k₂/2)<br>
+         k₄=f(tₙ+h, Qₙ+h·k₃)<br>
+         Q<sub>n+1</sub>=Qₙ+h/6·(k₁+2k₂+2k₃+k₄)<br>
+         Erro global: <b>O(h⁴)</b></p>
+    </div>
+  </div>
+  <div class="tcard" style="margin-bottom:12px">
+    <h3>Verificação dimensional</h3>
+    <p>dQ/dt → [kg/h]<br>
+       α = r·c<sub>in</sub> → [m³/h]·[kg/m³] = [kg/h] ✓<br>
+       k·Q → [h⁻¹]·[kg] = [kg/h] ✓</p>
+  </div>
+  <div class="tcard" style="margin-bottom:12px">
+    <h3>Meia-vida</h3>
+    <p>t½ = ln(2)/k = ln(2)/<span id="t12k">0.500</span> ≈ <span id="t12v">1.39</span> h</p>
+  </div>
+  <div class="tcard">
+    <h3>Normas técnicas</h3>
+    <div class="irow"><span class="ik">Consumo per capita</span><span class="iv">NBR 12211</span></div>
+    <div class="irow"><span class="ik">Reservatório</span><span class="iv">NBR 12217</span></div>
+    <div class="irow"><span class="ik">Concentração sal</span><span class="iv">Portaria 888/2021</span></div>
+  </div>
+</div>
+
+<footer>UENP · Cálculo II e Aplicações Computacionais · 2026 · Ana Alice Montoro · Ana Clara Correia · Yasmim Coimbra De Grandi</footer>
+</div><!-- /app -->
+
+<script>
+// ── STATE ──────────────────────────────────────────────
+let chartMain=null, chartErr=null;
+let playing=false, playTimer=null, playStep=0;
+let curK=0.5, curAl=10, curQs=20, curQ0=0, curT=24;
+let bubbles=[];
+
+// ── HELPERS ──────────────────────────────────────────
+const $=id=>document.getElementById(id);
+const gv=id=>parseFloat($(id).value);
+const f=(n,d=3)=>n.toFixed(d);
+
+function analytic(t){return curQs+(curQ0-curQs)*Math.exp(-curK*t)}
+
+function euler(k,al,Q0,h,N){
+  let Q=[Q0];
+  for(let i=0;i<N;i++) Q.push(Q[i]+h*(al-k*Q[i]));
+  return Q;
+}
+function rk4(k,al,Q0,h,N){
+  let Q=[Q0];
+  for(let i=0;i<N;i++){
+    let q=Q[i],k1=al-k*q,k2=al-k*(q+h/2*k1),k3=al-k*(q+h/2*k2),k4=al-k*(q+h*k3);
+    Q.push(q+h/6*(k1+2*k2+2*k3+k4));
+  }
+  return Q;
+}
+
+// ── MAIN UPDATE ──────────────────────────────────────
+function update(){
+  const r=gv('sl-r'), V=gv('sl-V'), cin=gv('sl-cin'), Q0=gv('sl-Q0');
+  const h=gv('sl-h'), T=gv('sl-T');
+  const k=r/V, al=r*cin, Qs=al/k, t12=Math.log(2)/k;
+  const N=Math.round(T/h);
+
+  curK=k; curAl=al; curQs=Qs; curQ0=Q0; curT=T;
+
+  // slider labels
+  $('v-r').textContent=r; $('v-V').textContent=V;
+  $('v-cin').textContent=cin.toFixed(3); $('v-Q0').textContent=Q0;
+  $('v-h').textContent=h.toFixed(2); $('v-T').textContent=T;
+
+  // metric cards
+  $('c-k').innerHTML=f(k,4)+'<span class="cu">h⁻¹</span>';
+  $('c-qs').innerHTML=f(Qs,2)+'<span class="cu">kg</span>';
+  $('c-t12').innerHTML=f(t12,2)+'<span class="cu">h</span>';
+  $('c-al').innerHTML=f(al,2)+'<span class="cu">kg/h</span>';
+  $('c-ceq').innerHTML=f(Qs/V,3)+'<span class="cu">kg/m³</span>';
+
+  // EDO live
+  $('edo-live').innerHTML=`dQ/dt = <span class="hl">${f(al,2)}</span> − <span class="hl2">${f(k,4)}</span>·Q(t),&nbsp; Q(0) = ${Q0}`;
+
+  // teoria
+  const diff=Q0-Qs;
+  let solStr= Math.abs(Q0)<.01
+    ? `Q(t) = ${f(Qs,2)}·(1 − e<sup>−${f(k,3)}t</sup>)`
+    : diff<0
+      ? `Q(t) = ${f(Qs,2)} − ${f(-diff,2)}·e<sup>−${f(k,3)}t</sup>`
+      : `Q(t) = ${f(Qs,2)} + ${f(diff,2)}·e<sup>−${f(k,3)}t</sup>`;
+  if($('sol-txt')) $('sol-txt').innerHTML=solStr;
+  if($('t12k')) $('t12k').textContent=f(k,3);
+  if($('t12v')) $('t12v').textContent=f(t12,2);
+
+  // build arrays
+  const ts=[],qa=[],qe=[],qr=[];
+  const EA=euler(k,al,Q0,h,N), RA=rk4(k,al,Q0,h,N);
+  for(let i=0;i<=N;i++){
+    const t=i*h;
+    ts.push(f(t,1)); qa.push(Qs+(Q0-Qs)*Math.exp(-k*t));
+    qe.push(EA[i]); qr.push(RA[i]);
+  }
+  const errE=qa.map((v,i)=>Math.abs(v-qe[i]));
+  const errR=qa.map((v,i)=>Math.abs(v-qr[i]));
+
+  // chart main
+  if(chartMain) chartMain.destroy();
+  chartMain=new Chart($('chart-main'),{type:'line',data:{labels:ts,datasets:[
+    {label:'Analítica',data:qa,borderColor:'#3b82f6',borderWidth:2.5,pointRadius:0,tension:.3},
+    {label:'Euler',data:qe,borderColor:'#f43f5e',borderWidth:1.8,borderDash:[6,3],pointRadius:0,tension:.3},
+    {label:'RK4',data:qr,borderColor:'#22d3a5',borderWidth:1.8,borderDash:[2,3],pointRadius:0,tension:.3},
+    {label:'Q*',data:Array(ts.length).fill(Qs),borderColor:'#f59e0b',borderWidth:1,borderDash:[8,4],pointRadius:0}
+  ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#13171f',borderColor:'rgba(255,255,255,.1)',borderWidth:1,
+      titleColor:'#e8eaf0',bodyColor:'#9ca3af',titleFont:{family:'IBM Plex Mono',size:10},bodyFont:{family:'IBM Plex Mono',size:9}}},
+    scales:{
+      x:{ticks:{autoSkip:true,maxTicksLimit:9,color:'#6b7280',font:{family:'IBM Plex Mono',size:9}},
+         grid:{color:'rgba(255,255,255,.04)'},border:{color:'rgba(255,255,255,.08)'}},
+      y:{ticks:{color:'#6b7280',font:{family:'IBM Plex Mono',size:9}},
+         grid:{color:'rgba(255,255,255,.04)'},border:{color:'rgba(255,255,255,.08)'},
+         title:{display:true,text:'Q(t) [kg]',color:'#6b7280',font:{size:10}}}}}});
+
+  // chart err
+  if(chartErr) chartErr.destroy();
+  chartErr=new Chart($('chart-err'),{type:'line',data:{labels:ts,datasets:[
+    {label:'Erro Euler',data:errE,borderColor:'#f43f5e',borderWidth:2,pointRadius:0,fill:'origin',backgroundColor:'rgba(244,63,94,.07)'},
+    {label:'Erro RK4',data:errR,borderColor:'#22d3a5',borderWidth:2,pointRadius:0,fill:'origin',backgroundColor:'rgba(34,211,165,.07)'}
+  ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#13171f',borderColor:'rgba(255,255,255,.1)',borderWidth:1,
+      titleColor:'#e8eaf0',bodyColor:'#9ca3af',titleFont:{family:'IBM Plex Mono',size:10},bodyFont:{family:'IBM Plex Mono',size:9}}},
+    scales:{
+      x:{ticks:{autoSkip:true,maxTicksLimit:8,color:'#6b7280',font:{family:'IBM Plex Mono',size:9}},
+         grid:{color:'rgba(255,255,255,.04)'},border:{color:'rgba(255,255,255,.08)'}},
+      y:{ticks:{color:'#6b7280',font:{family:'IBM Plex Mono',size:9}},
+         grid:{color:'rgba(255,255,255,.04)'},border:{color:'rgba(255,255,255,.08)'},
+         title:{display:true,text:'Erro [kg]',color:'#6b7280',font:{size:10}}}}}});
+
+  // table
+  const step=Math.max(1,Math.floor(N/12));
+  let rows='';
+  for(let i=0;i<=N;i+=step){
+    const t=i*h,a=qa[i],e=qe[i],r2=qr[i];
+    const eE=Math.abs(a-e),eR=Math.abs(a-r2);
+    rows+=`<tr><td>${f(t,1)}</td><td>${f(a,4)}</td><td>${f(e,4)}</td>
+      <td class="ee">${eE<1e-8?'<1e-8':eE<1e-4?eE.toExponential(2):f(eE,5)}</td>
+      <td>${f(r2,4)}</td>
+      <td class="er">${eR<1e-10?'≈0':eR<1e-6?eR.toExponential(2):f(eR,7)}</td></tr>`;
+  }
+  $('tbl-body').innerHTML=rows;
+
+  // campo
+  drawCampo();
+
+  // reset play
+  playStep=0;
+  $('tslider').max=N;
+  $('tslider').value=0;
+  drawTank(Q0,Q0,Qs,al,k,V,0);
+  updateTankStats(Q0,Qs,al,k,V,0);
+  initBubbles();
+}
+
+// ── CAMPO DE DIREÇÕES ──────────────────────────────
+function drawCampo(){
+  const canvas=$('canvas-campo');
+  // quando o painel está oculto, offsetWidth=0; usa largura do container pai visível
+  const W=canvas.offsetWidth||canvas.parentElement?.offsetWidth||
+    document.querySelector('.app')?.offsetWidth||600;
+  const H=Math.min(400, Math.round(W*0.58));
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+
+  const k=curK,al=curAl,Qs=curQs,Q0=curQ0,T=curT;
+  const pad={l:52,r:18,t:16,b:38};
+  const pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+  const Qmax=Math.max(Qs*1.8, Q0*1.2, 10);
+  const tx=t=>pad.l+t/T*pw;
+  const ty=q=>pad.t+ph-(q/Qmax*ph);
+
+  // background
+  ctx.fillStyle='#0b0e14'; ctx.fillRect(0,0,W,H);
+
+  // grid
+  ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=.5;
+  for(let i=0;i<=5;i++){
+    ctx.beginPath();ctx.moveTo(tx(i/5*T),pad.t);ctx.lineTo(tx(i/5*T),pad.t+ph);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(pad.l,ty(i/5*Qmax));ctx.lineTo(pad.l+pw,ty(i/5*Qmax));ctx.stroke();
+  }
+
+  // ── SETAS estilo matplotlib quiver (pivot="mid") ──
+  // Cada seta é centralizada no ponto (t,Q), normalizada, com haste + cabeça proporcional
+  const n = 25; // número de pontos por eixo (igual ao n=25 do python)
+  const arrowLen = Math.min(pw/n, ph/n) * 1.05;
+  const headFrac = 0.35;  // fração da seta que é cabeça
+  const headHW   = arrowLen * 0.13; // meia-largura da cabeça
+
+  for(let ci=0; ci<n; ci++){
+    for(let ri=0; ri<n; ri++){
+      const t = ci/(n-1)*T;
+      const Q = ri/(n-1)*Qmax;
+      const dq = al - k*Q;
+
+      // vetor no espaço canvas (normalizado como no quiver do matplotlib)
+      const dtC =  1;           // componente horizontal sempre positivo
+      const dqC = -dq/Math.abs(al+k*Qmax+0.001)*1; // componente vertical escalada
+      const mag = Math.sqrt(dtC**2 + dqC**2) || 1;
+      const ux = dtC/mag;
+      const uy = dqC/mag;
+
+      // centro do ponto no canvas
+      const cx = tx(t);
+      const cy = ty(Q);
+
+      // pivot=mid: seta vai de -L/2 a +L/2 em torno do centro
+      const L = arrowLen;
+      const x0 = cx - ux*(L/2);
+      const y0 = cy - uy*(L/2);
+      const x1 = cx + ux*(L/2);
+      const y1 = cy + uy*(L/2);
+
+      // início da cabeça
+      const hx = x1 - ux*(L*headFrac);
+      const hy = y1 - uy*(L*headFrac);
+
+      // perpendicular
+      const px2 = -uy, py2 = ux;
+
+      // cor: intensidade pelo ângulo (quanto mais horizontal = perto do equilíbrio = mais fraca)
+      const intensity = Math.min(1, Math.abs(dq) / (Math.abs(al) + 0.01));
+      const alpha = 0.25 + intensity * 0.6;
+      const col = `rgba(100,120,145,${alpha})`;
+
+      ctx.strokeStyle = col;
+      ctx.fillStyle   = col;
+      ctx.lineWidth   = 0.85;
+
+      // haste
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+
+      // cabeça triangular
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(hx + px2*headHW, hy + py2*headHW);
+      ctx.lineTo(hx - px2*headHW, hy - py2*headHW);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // ── equilíbrio Q*
+  ctx.strokeStyle='rgba(245,158,11,.75)'; ctx.lineWidth=1.5; ctx.setLineDash([7,4]);
+  ctx.beginPath(); ctx.moveTo(pad.l,ty(Qs)); ctx.lineTo(pad.l+pw,ty(Qs)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── trajetórias extras (várias condições iniciais)
+  // gera Q0s distribuídos de 0 a Qmax, excluindo a trajetória principal
+  const extraQ0s = [0, Qmax*0.15, Qmax*0.35, Qmax*0.55, Qmax*0.75, Qmax*0.95, Qmax*1.15, Qmax*1.35, Qmax*1.6];
+  for(const eq0 of extraQ0s){
+    if(Math.abs(eq0-Q0)<Qmax*0.06) continue; // pula se muito próxima da principal
+    const isAbove = eq0 > Qs;
+    ctx.strokeStyle = isAbove
+      ? 'rgba(244,63,94,0.28)'
+      : 'rgba(34,211,165,0.28)';
+    ctx.lineWidth=1.2; ctx.setLineDash([]);
+    ctx.beginPath();
+    let clipped=false;
+    for(let i=0;i<=300;i++){
+      const t=i/300*T, q=Qs+(eq0-Qs)*Math.exp(-k*t);
+      const px=tx(t), py=ty(q);
+      if(py<pad.t||py>pad.t+ph){ clipped=true; continue; }
+      if(clipped||i===0){ ctx.moveTo(px,py); clipped=false; }
+      else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+  }
+
+  // ── trajetória principal (Q0 escolhido pelo usuário)
+  ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2.4;
+  ctx.shadowColor='#3b82f6'; ctx.shadowBlur=10;
+  ctx.beginPath();
+  for(let i=0;i<=300;i++){
+    const t=i/300*T, q=Qs+(Q0-Qs)*Math.exp(-k*t);
+    i===0?ctx.moveTo(tx(t),ty(q)):ctx.lineTo(tx(t),ty(q));
+  }
+  ctx.stroke(); ctx.shadowBlur=0;
+
+  // ── pequenos pontos marcando o Q0 de cada trajetória extra
+  for(const eq0 of extraQ0s){
+    if(Math.abs(eq0-Q0)<Qmax*0.06) continue;
+    if(eq0<0||eq0>Qmax*1.65) continue;
+    const py=ty(eq0);
+    if(py<pad.t||py>pad.t+ph) continue;
+    const isAbove = eq0 > Qs;
+    ctx.fillStyle = isAbove ? 'rgba(244,63,94,0.55)' : 'rgba(34,211,165,0.55)';
+    ctx.beginPath(); ctx.arc(tx(0), py, 3, 0, Math.PI*2); ctx.fill();
+  }
+  // ponto da trajetória principal
+  ctx.fillStyle='#3b82f6';
+  ctx.beginPath(); ctx.arc(tx(0), ty(Q0), 4, 0, Math.PI*2); ctx.fill();
+
+  // ── eixos
+  ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,pad.t+ph);
+  ctx.lineTo(pad.l+pw,pad.t+ph);
+  ctx.stroke();
+
+  // labels eixo X
+  ctx.fillStyle='#6b7280'; ctx.font=`9px "IBM Plex Mono",monospace`; ctx.textAlign='center';
+  for(let i=0;i<=5;i++) ctx.fillText(f(i/5*T,0)+'h', tx(i/5*T), pad.t+ph+16);
+
+  // labels eixo Y
+  ctx.textAlign='right';
+  for(let i=0;i<=4;i++) ctx.fillText(f(i/4*Qmax,1), pad.l-5, ty(i/4*Qmax)+3);
+
+  // label Q*
+  ctx.fillStyle='rgba(245,158,11,.9)'; ctx.textAlign='left';
+  const qsY=ty(Qs);
+  ctx.fillText('Q*='+f(Qs,1)+' kg', pad.l+4, qsY-5);
+
+  // label eixos
+  ctx.fillStyle='#4b5563'; ctx.textAlign='center';
+  ctx.fillText('t (h)', pad.l+pw/2, H-4);
+  ctx.save();
+  ctx.translate(12, pad.t+ph/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('Q(t) [kg]', 0, 0);
+  ctx.restore();
+}
+
+// ── TANK DRAWING ──────────────────────────────────
+function initBubbles(){
+  bubbles=[];
+  for(let i=0;i<12;i++) bubbles.push({
+    x:Math.random(), y:Math.random(),
+    r:1.5+Math.random()*2.5, vy:0.003+Math.random()*.004,
+    phase:Math.random()*Math.PI*2
+  });
+}
+
+function drawTank(Qt, Q0, Qs, al, k, V, t){
+  const canvas=$('tank-canvas');
+  const W=canvas.offsetWidth||280;
+  canvas.width=W; canvas.height=300;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,300);
+  const H=300;
+
+  // dims
+  const tx0=W*.12, ty0=H*.08, tw=W*.76, th=H*.72;
+  const fillFrac=Math.max(0, Math.min(1, Qt/Math.max(Qs*1.5,1)));
+  const waterH=th*fillFrac;
+  const waterY=ty0+th-waterH;
+
+  // salt concentration color: low=clear blue, high=deep teal
+  const pct=Math.min(1, Qt/Qs);
+  const r=Math.round(14+pct*(22-14));
+  const g=Math.round(165+pct*(211-165));  // stays teal
+  const b=Math.round(233+pct*(170-233));
+  const waterColor=`rgba(${r},${g},${b},0.88)`;
+  const waterDark=`rgba(${Math.max(0,r-20)},${Math.max(0,g-30)},${Math.max(0,b-30)},0.95)`;
+
+  // ── tank body shadow
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,.5)';
+  ctx.shadowBlur=18; ctx.shadowOffsetY=6;
+  ctx.fillStyle='#1a1f2b';
+  roundRect(ctx,tx0-4,ty0-4,tw+8,th+8,14); ctx.fill();
+  ctx.restore();
+
+  // ── tank walls (outer)
+  ctx.fillStyle='#252c3b';
+  roundRect(ctx,tx0-4,ty0-4,tw+8,th+8,14); ctx.fill();
+
+  // ── water
+  if(waterH>2){
+    ctx.save();
+    roundRect(ctx,tx0,waterY,tw,waterH+(ty0+th-waterY-th>0?0:0),10);
+    ctx.clip();
+
+    // gradient
+    const wg=ctx.createLinearGradient(tx0,waterY,tx0,ty0+th);
+    wg.addColorStop(0,waterColor);
+    wg.addColorStop(1,waterDark);
+    ctx.fillStyle=wg; ctx.fillRect(tx0,waterY,tw,waterH);
+
+    // wave on top
+    const now=performance.now()/1000;
+    ctx.beginPath();
+    ctx.moveTo(tx0,waterY+6);
+    for(let x=0;x<=tw;x+=4){
+      const y=waterY+Math.sin((x/tw)*Math.PI*4+now*2)*3;
+      ctx.lineTo(tx0+x,y);
+    }
+    ctx.lineTo(tx0+tw,waterY+6);ctx.lineTo(tx0+tw,waterY);ctx.lineTo(tx0,waterY);ctx.closePath();
+    ctx.fillStyle=`rgba(${r+40},${g+20},${b+10},0.3)`; ctx.fill();
+
+    // bubbles
+    const now2=performance.now()/800;
+    for(const b of bubbles){
+      const bx=tx0+b.x*tw;
+      const by=waterY+waterH*(1-(((now2*b.vy+b.phase)%1)));
+      if(by>=waterY && by<=ty0+th){
+        ctx.beginPath();
+        ctx.arc(bx,by,b.r,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(255,255,255,0.3)`;
+        ctx.lineWidth=1; ctx.stroke();
+      }
+    }
+
+    // mixing particles
+    for(let i=0;i<6;i++){
+      const px=tx0+10+Math.sin(now*1.3+i*1.1)*tw*.35+tw*.4;
+      const py=waterY+waterH*.3+Math.cos(now*.9+i*.8)*waterH*.3;
+      if(px>tx0&&px<tx0+tw&&py>waterY&&py<ty0+th){
+        ctx.beginPath();ctx.arc(px,py,1.5,0,Math.PI*2);
+        ctx.fillStyle=`rgba(255,255,255,0.4)`;ctx.fill();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // ── tank inner border
+  ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1.5;
+  roundRect(ctx,tx0,ty0,tw,th,10); ctx.stroke();
+
+  // ── Q* equilibrium line
+  const qsFrac=Math.min(1, Qs/Math.max(Qs*1.5,1));
+  const qsY=ty0+th-th*qsFrac;
+  if(qsY>=ty0 && qsY<=ty0+th){
+    ctx.strokeStyle='rgba(245,158,11,.75)'; ctx.lineWidth=1.2; ctx.setLineDash([5,3]);
+    ctx.beginPath();ctx.moveTo(tx0+4,qsY);ctx.lineTo(tx0+tw-4,qsY);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(245,158,11,.9)';ctx.font=`bold 9px "IBM Plex Mono",monospace`;
+    ctx.textAlign='right';ctx.fillText('Q*',tx0+tw-5,qsY-3);
+  }
+
+  // ── level gauge (right side)
+  const gx=tx0+tw+10, gy=ty0, gw=10, gh=th;
+  ctx.fillStyle='#0f131a';ctx.strokeStyle='rgba(255,255,255,.1)';ctx.lineWidth=1;
+  ctx.fillRect(gx,gy,gw,gh); ctx.strokeRect(gx,gy,gw,gh);
+  if(waterH>0){
+    const gfg=ctx.createLinearGradient(gx,gy+gh-waterH,gx,gy+gh);
+    gfg.addColorStop(0,waterColor);gfg.addColorStop(1,waterDark);
+    ctx.fillStyle=gfg; ctx.fillRect(gx,gy+gh-waterH,gw,waterH);
+  }
+  // gauge ticks
+  ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=.5;
+  for(let i=0;i<=4;i++){
+    const yt=gy+gh*i/4;
+    ctx.beginPath();ctx.moveTo(gx-4,yt);ctx.lineTo(gx,yt);ctx.stroke();
+    ctx.fillStyle='#6b7280';ctx.font='8px monospace';ctx.textAlign='right';
+    ctx.fillText(f((1-i/4)*Math.max(Qs*1.5,1),0),gx-6,yt+3);
+  }
+
+  // ── PIPE IN (left top)
+  const pipeW=12, pipeX=tx0-pipeW-2;
+  const inY=ty0+12;
+  ctx.fillStyle='#2e3649'; ctx.strokeStyle='rgba(255,255,255,.15)'; ctx.lineWidth=1;
+  ctx.fillRect(pipeX-22,inY,22+pipeW,pipeW); ctx.strokeRect(pipeX-22,inY,22+pipeW,pipeW);
+  // flow arrow in
+  ctx.fillStyle='rgba(59,130,246,.7)';
+  ctx.beginPath();ctx.moveTo(pipeX-16,inY+pipeW/2-3);
+  ctx.lineTo(pipeX-7,inY+pipeW/2-3);
+  ctx.lineTo(pipeX-7,inY+pipeW/2-6);
+  ctx.lineTo(pipeX-1,inY+pipeW/2);
+  ctx.lineTo(pipeX-7,inY+pipeW/2+6);
+  ctx.lineTo(pipeX-7,inY+pipeW/2+3);
+  ctx.lineTo(pipeX-16,inY+pipeW/2+3);
+  ctx.closePath();ctx.fill();
+  // label
+  ctx.fillStyle='rgba(59,130,246,.9)';ctx.font='bold 9px "IBM Plex Mono",monospace';
+  ctx.textAlign='center';ctx.fillText('r·cᵢₙ',pipeX-12,inY-5);
+  ctx.fillStyle='#6b7280';ctx.font='8px "IBM Plex Mono",monospace';
+  ctx.fillText(f(al,1)+' kg/h',pipeX-12,inY+pipeW+11);
+
+  // ── PIPE OUT (right bottom)
+  const outY=ty0+th-12-pipeW;
+  const outPipeX=tx0+tw+2;
+  ctx.fillStyle='#2e3649'; ctx.strokeStyle='rgba(255,255,255,.15)'; ctx.lineWidth=1;
+  ctx.fillRect(outPipeX,outY,22+pipeW,pipeW); ctx.strokeRect(outPipeX,outY,22+pipeW,pipeW);
+  // flow arrow out
+  const conc=Qt/Math.max(V,1);
+  const outR=Math.round(conc/0.12*200);
+  ctx.fillStyle=`rgba(${outR},200,180,.7)`;
+  const ax2=outPipeX+12;
+  ctx.beginPath();ctx.moveTo(ax2,outY+pipeW/2-3);
+  ctx.lineTo(ax2+8,outY+pipeW/2-3);
+  ctx.lineTo(ax2+8,outY+pipeW/2-6);
+  ctx.lineTo(ax2+15,outY+pipeW/2);
+  ctx.lineTo(ax2+8,outY+pipeW/2+6);
+  ctx.lineTo(ax2+8,outY+pipeW/2+3);
+  ctx.lineTo(ax2,outY+pipeW/2+3);
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(34,211,165,.9)';ctx.font='bold 9px "IBM Plex Mono",monospace';
+  ctx.textAlign='center';ctx.fillText('saída',outPipeX+17,outY-5);
+  ctx.fillStyle='#6b7280';ctx.font='8px "IBM Plex Mono",monospace';
+  ctx.fillText(f(conc,3)+' kg/m³',outPipeX+17,outY+pipeW+11);
+
+  // ── LABELS inside tank
+  ctx.fillStyle='rgba(255,255,255,.85)';
+  ctx.font=`bold ${Math.min(13,W*.042)}px "IBM Plex Mono",monospace`;
+  ctx.textAlign='center';
+  ctx.fillText('Q(t) = '+f(Qt,2)+' kg', tx0+tw/2, ty0+th/2-6);
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  ctx.font=`${Math.min(10,W*.033)}px "IBM Plex Mono",monospace`;
+  ctx.fillText('c = '+f(conc,3)+' kg/m³', tx0+tw/2, ty0+th/2+12);
+  ctx.fillText('V = '+V+' m³', tx0+tw/2, ty0+th/2+26);
+
+  // ── time display
+  ctx.fillStyle='rgba(255,255,255,.6)';ctx.font='10px "IBM Plex Mono",monospace';
+  ctx.textAlign='left';ctx.fillText('t = '+f(t,2)+' h', tx0+4, ty0+th-6);
+
+  // ── fill % bar
+  const barW=tw*.7, barX=tx0+tw*.15, barY=ty0+th+18;
+  ctx.fillStyle='rgba(255,255,255,.06)';
+  ctx.beginPath();
+  ctx.roundRect?ctx.roundRect(barX,barY,barW,5,3):
+    (ctx.fillRect(barX,barY,barW,5));
+  ctx.fill();
+  if(fillFrac>0){
+    const bg2=ctx.createLinearGradient(barX,0,barX+barW,0);
+    bg2.addColorStop(0,waterColor);bg2.addColorStop(1,'#22d3a5');
+    ctx.fillStyle=bg2;
+    ctx.beginPath();
+    ctx.roundRect?ctx.roundRect(barX,barY,barW*fillFrac,5,3):
+      (ctx.fillRect(barX,barY,barW*fillFrac,5));
+    ctx.fill();
+  }
+  ctx.fillStyle='rgba(255,255,255,.4)';ctx.font='8px monospace';ctx.textAlign='left';
+  ctx.fillText(f(fillFrac*100,0)+'% de V',barX,barY+15);
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+}
+
+// ── TANK ANIMATION LOOP ───────────────────────────
+let animFrame=null;
+function tankLoop(){
+  if(!playing) return;
+  animFrame=requestAnimationFrame(()=>{
+    const sl=$('tslider');
+    const max=parseInt(sl.max)||200;
+    if(playStep>=max){
+      playing=false;
+      $('playbtn').textContent='▶ Play';
+      playStep=max; sl.value=max;
+      renderTankAt(max);
+      return;
+    }
+    playStep++;
+    sl.value=playStep;
+    renderTankAt(playStep);
+    setTimeout(tankLoop, 35);
+  });
+}
+
+function renderTankAt(step){
+  const sl=$('tslider');
+  const max=parseInt(sl.max)||1;
+  const T=curT, t=step/max*T;
+  const Qt=analytic(t);
+  const h=gv('sl-h'), V=gv('sl-V');
+  $('tlbl').textContent=f(t,2)+' h';
+  drawTank(Qt,curQ0,curQs,curAl,curK,V,t);
+  updateTankStats(Qt,curQs,curAl,curK,V,t);
+}
+
+function updateTankStats(Qt,Qs,al,k,V,t){
+  $('ts-qt').textContent=f(Qt,2)+' kg';
+  $('ts-pct').textContent=f(Math.min(100,Qt/Qs*100),1)+' %';
+  $('ts-cc').textContent=f(Qt/Math.max(V,1),3)+' kg/m³';
+  const dq=al-k*Qt;
+  $('ts-dq').textContent=(dq>=0?'+':'')+f(dq,2)+' kg/h';
+}
+
+function onSlider(){
+  if(playing){ playing=false; $('playbtn').textContent='▶ Play'; }
+  renderTankAt(parseInt($('tslider').value)||0);
+}
+
+function togglePlay(){
+  playing=!playing;
+  $('playbtn').textContent=playing?'⏸ Pause':'▶ Play';
+  if(playing){
+    if(parseInt($('tslider').value)>=$('tslider').max){
+      playStep=0; $('tslider').value=0;
+    } else {
+      playStep=parseInt($('tslider').value);
+    }
+    tankLoop();
+  }
+}
+
+// ── TANK RESIZE OBSERVER ─────────────────────────
+let tankResizeTimer=null;
+const ro=new ResizeObserver(()=>{
+  clearTimeout(tankResizeTimer);
+  tankResizeTimer=setTimeout(()=>{
+    const Qt=analytic(curT*parseInt($('tslider').value)/(parseInt($('tslider').max)||1));
+    drawTank(Qt,curQ0,curQs,curAl,curK,gv('sl-V'),
+      curT*parseInt($('tslider').value)/(parseInt($('tslider').max)||1));
+  },80);
+});
+ro.observe($('tank-canvas').parentElement||document.body);
+
+// ── TAB SWITCHING ─────────────────────────────────
+function tab(id){
+  const ids=['params','grafico','campo','erros','teoria'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',ids[i]===id));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  $('panel-'+id).classList.add('active');
+  if(id==='grafico'||id==='erros'){
+    setTimeout(()=>{
+      chartMain?.resize();
+      chartErr?.resize();
+      // rebuild with current params if needed
+      if(!chartMain||!chartErr) update();
+    },60);
+  }
+  if(id==='campo') setTimeout(()=>{drawCampo();},60);
+}
+
+// ── INIT ──────────────────────────────────────────
+initBubbles();
+window.addEventListener('load',()=>{ update(); });
+window.addEventListener('resize',()=>{
+  chartMain?.resize(); chartErr?.resize();
+  setTimeout(drawCampo,80);
+});
+
+// continuous bubble animation
+(function animBubbles(){
+  if($('tank-canvas') && !playing){
+    const sl=$('tslider');
+    const step=parseInt(sl.value)||0, max=parseInt(sl.max)||1;
+    const t=curT*step/max;
+    const Qt=analytic(t);
+    drawTank(Qt,curQ0,curQs,curAl,curK,gv('sl-V'),t);
+  }
+  requestAnimationFrame(animBubbles);
+})();
+</script>
+</body>
+</html>
