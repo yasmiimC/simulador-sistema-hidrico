@@ -288,8 +288,8 @@ footer{text-align:center;font-family:var(--mono);font-size:9px;color:var(--muted
           <div class="cblock">
             <label>Tempo total <b>T</b></label>
             <div class="srow">
-              <input type="range" id="sl-T" min="2" max="20" step="1" value="10" oninput="update()">
-              <span class="sval"><span id="v-T">10</span> h</span>
+              <input type="range" id="sl-T" min="2" max="48" step="1" value="24" oninput="update()">
+              <span class="sval"><span id="v-T">24</span> h</span>
             </div>
           </div>
         </div>
@@ -451,7 +451,7 @@ footer{text-align:center;font-family:var(--mono);font-size:9px;color:var(--muted
 // ── STATE ──────────────────────────────────────────────
 let chartMain=null, chartErr=null;
 let playing=false, playTimer=null, playStep=0;
-let curK=0.5, curAl=10, curQs=20, curQ0=0, curT=10;
+let curK=0.5, curAl=10, curQs=20, curQ0=0, curT=24;
 let bubbles=[];
 
 // ── HELPERS ──────────────────────────────────────────
